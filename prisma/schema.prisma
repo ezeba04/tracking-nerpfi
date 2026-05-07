@@ -1,0 +1,107 @@
+// Prisma Schema — Cooperativa los Trapitos
+// Competitive Programming Progress Tracker
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Team ───────────────────────────────────────────────
+
+model TeamMember {
+  id              Int               @id @default(autoincrement())
+  name            String
+  codeforcesHandle String?          @unique
+  csesUsername     String?          @unique
+  csesUserId      String?
+  cfSubmissions   CfSubmission[]
+  csesSubmissions CsesSubmission[]
+}
+
+// ─── Codeforces ─────────────────────────────────────────
+
+model CfContest {
+  id              Int            @id // Codeforces contest ID
+  name            String
+  startTime       Int            // Unix timestamp
+  durationSeconds Int
+  type            String?        // CF, IOI, ICPC
+  phase           String?        // FINISHED, CODING, etc.
+  problems        CfProblem[]
+  submissions     CfSubmission[]
+}
+
+model CfProblem {
+  id           Int            @id @default(autoincrement())
+  contestId    Int
+  problemIndex String         // A, B, C, D...
+  name         String
+  rating       Int?
+  tags         String?        // JSON array
+  url          String
+  contest      CfContest      @relation(fields: [contestId], references: [id])
+  submissions  CfSubmission[]
+
+  @@unique([contestId, problemIndex])
+}
+
+model CfSubmission {
+  id              Int        @id // Codeforces submission ID
+  contestId       Int
+  problemId       Int
+  memberId        Int
+  verdict         String
+  timeMs          Int?
+  memoryBytes     Int?
+  language        String?
+  passedTests     Int?
+  createdAt       Int        // Unix timestamp
+  relativeTime    Int?       // Seconds since contest start
+  isDuringContest Boolean    @default(false)
+  sourceCode      String?    // Scraped source code
+  contest         CfContest  @relation(fields: [contestId], references: [id])
+  problem         CfProblem  @relation(fields: [problemId], references: [id])
+  member          TeamMember @relation(fields: [memberId], references: [id])
+}
+
+// ─── CSES ───────────────────────────────────────────────
+
+model CsesProblem {
+  id          Int              @id @default(autoincrement())
+  csesId      String           @unique // CSES problem ID from URL
+  name        String
+  category    String?          // Introductory, Sorting, etc.
+  url         String
+  submissions CsesSubmission[]
+}
+
+model CsesSubmission {
+  id               Int         @id @default(autoincrement())
+  csesSubmissionId String      @unique // CSES submission ID
+  problemId        Int
+  memberId         Int
+  verdict          String
+  timeMs           Int?
+  memoryKb         Int?
+  language         String?
+  createdAt        String?
+  sourceCode       String?
+  problem          CsesProblem @relation(fields: [problemId], references: [id])
+  member           TeamMember  @relation(fields: [memberId], references: [id])
+}
+
+// ─── Sync State ─────────────────────────────────────────
+
+model SyncLog {
+  id        Int      @id @default(autoincrement())
+  platform  String   // "codeforces" or "cses"
+  status    String   // "running", "completed", "error"
+  message   String?
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  newItems  Int      @default(0)
+}
