@@ -184,17 +184,16 @@ export async function scrapeProblems(): Promise<CsesProblemInfo[]> {
 // ─── Scrape User Submissions ────────────────────────────
 
 /**
- * Get submission IDs for a specific problem by a user
+ * Get submission IDs for a specific problem (must be logged in as the user).
+ * Visits the task page where CSES shows the logged-in user's submissions.
  */
-export async function scrapeUserSubmissionsForProblem(
-  csesUserId: string,
+export async function scrapeSubmissionsForTask(
   csesProblemId: string
 ): Promise<string[]> {
   if (!isLoggedIn) throw new Error("Must be logged in to CSES before scraping. Call loginAs() first.");
   await delay(SCRAPE_DELAY_MS);
 
-  // Navigate to the user's submissions for this problem
-  const url = `${CSES_BASE}/problemset/result/${csesProblemId}/?user=${csesUserId}`;
+  const url = `${CSES_BASE}/problemset/task/${csesProblemId}`;
   const response = await fetch(url, {
     headers: {
       Cookie: getCookieHeader(),
@@ -207,8 +206,7 @@ export async function scrapeUserSubmissionsForProblem(
   const $ = cheerio.load(html);
   const submissionIds: string[] = [];
 
-  // Look for submission links in the results table
-  $("table a, .content a").each((_, el) => {
+  $("a").each((_, el) => {
     const href = $(el).attr("href") || "";
     const match = href.match(/\/problemset\/result\/(\d+)/);
     if (match && !submissionIds.includes(match[1])) {
@@ -220,16 +218,17 @@ export async function scrapeUserSubmissionsForProblem(
 }
 
 /**
- * Scrape all submissions for a user across all attempted problems
+ * Scrape attempted/solved problem IDs from /problemset/list (must be logged in).
+ * CSES marks problems with <span class="task-score icon full"> (solved) or
+ * <span class="task-score icon zero"> (attempted, 0 score).
  */
 export async function scrapeUserAllSubmissions(
-  csesUserId: string
+  _csesUserId: string
 ): Promise<Array<{ problemId: string; submissionIds: string[] }>> {
   if (!isLoggedIn) throw new Error("Must be logged in to CSES before scraping. Call loginAs() first.");
   await delay(SCRAPE_DELAY_MS);
 
-  // Go to user page to find attempted problems
-  const response = await fetch(`${CSES_BASE}/user/${csesUserId}`, {
+  const response = await fetch(`${CSES_BASE}/problemset/list`, {
     headers: {
       Cookie: getCookieHeader(),
       "User-Agent":
@@ -240,34 +239,34 @@ export async function scrapeUserAllSubmissions(
   const html = await response.text();
   const $ = cheerio.load(html);
 
-  const problemSubmissions: Array<{
-    problemId: string;
-    submissionIds: string[];
-  }> = [];
+  const results: Array<{ problemId: string; submissionIds: string[] }> = [];
 
-  // Find links to problem results
-  $("a").each((_, el) => {
-    const href = $(el).attr("href") || "";
-    const match = href.match(/\/problemset\/task\/(\d+)/);
-    if (match) {
-      const classes = $(el).attr("class") || "";
-      // Only include attempted problems (have a class indicating status)
-      if (classes.includes("full") || classes.includes("zero") || classes.includes("task-score")) {
-        problemSubmissions.push({
-          problemId: match[1],
-          submissionIds: [], // will be filled by individual problem scraping
-        });
+  $("li.task").each((_, li) => {
+    const scoreSpan = $(li).find(".task-score");
+    const cls = scoreSpan.attr("class") || "";
+    if (cls.includes("full") || cls.includes("zero")) {
+      const a = $(li).find("a");
+      const href = a.attr("href") || "";
+      const match = href.match(/\/problemset\/task\/(\d+)/);
+      if (match) {
+        results.push({ problemId: match[1], submissionIds: [] });
       }
     }
   });
 
-  return problemSubmissions;
+  return results;
 }
 
 // ─── Scrape Submission Detail ───────────────────────────
 
 /**
- * Scrape a specific submission for details and source code
+ * Scrape a specific submission for details and source code.
+ *
+ * CSES result pages have a table with rows like:
+ *   Task: | <link to /problemset/task/XXXX>
+ *   Submission time: | 2025-07-28 23:49:37 +0300
+ *   Language: | C++ (C++11)
+ *   Result: | ACCEPTED
  */
 export async function scrapeSubmissionDetail(
   submissionId: string
@@ -293,7 +292,6 @@ export async function scrapeSubmissionDetail(
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // Extract problem ID from breadcrumbs or links
     let problemId = "";
     $("a").each((_, el) => {
       const href = $(el).attr("href") || "";
@@ -301,52 +299,53 @@ export async function scrapeSubmissionDetail(
       if (match) problemId = match[1];
     });
 
-    // Extract verdict
-    const verdict = $(".verdict, .result-text").first().text().trim() || "Unknown";
-
-    // Extract time and memory from the detail table
-    let timeMs: number | null = null;
-    let memoryKb: number | null = null;
+    let verdict = "Unknown";
     let language: string | null = null;
     let createdAt: string | null = null;
+    let timeMs: number | null = null;
 
-    $("table tr, .info-table tr").each((_, row) => {
+    $("table tr").each((_, row) => {
       const cells = $(row).find("td");
-      if (cells.length >= 2) {
-        const label = $(cells[0]).text().trim().toLowerCase();
-        const value = $(cells[1]).text().trim();
+      if (cells.length < 2) return;
+      const label = $(cells[0]).text().trim().toLowerCase();
+      const value = $(cells[1]).text().trim();
 
-        if (label.includes("time") || label.includes("tiempo")) {
-          const timeMatch = value.match(/([\d.]+)\s*s/);
-          if (timeMatch) timeMs = Math.round(parseFloat(timeMatch[1]) * 1000);
-        }
-        if (label.includes("memory") || label.includes("memoria")) {
-          const memMatch = value.match(/([\d.]+)/);
-          if (memMatch) memoryKb = Math.round(parseFloat(memMatch[1]));
-        }
-        if (label.includes("language") || label.includes("lenguaje")) {
-          language = value;
-        }
-        if (label.includes("time") && label.includes("submit")) {
-          createdAt = value;
+      if (label.startsWith("result")) {
+        verdict = value;
+      } else if (label.startsWith("language")) {
+        language = value;
+      } else if (label.startsWith("submission time")) {
+        createdAt = value;
+      }
+    });
+
+    // Get max time from individual test rows (#1, #2, ...)
+    $("table tr").each((_, row) => {
+      const cells = $(row).find("td");
+      if (cells.length >= 3) {
+        const testLabel = $(cells[0]).text().trim();
+        if (testLabel.startsWith("#")) {
+          const timeText = $(cells[2]).text().trim();
+          const m = timeText.match(/([\d.]+)\s*s/);
+          if (m) {
+            const ms = Math.round(parseFloat(m[1]) * 1000);
+            if (timeMs === null || ms > timeMs) timeMs = ms;
+          }
         }
       }
     });
 
-    // Extract source code
-    const sourceCode = $("pre.linenums").text() ||
-      $("pre.source-code").text() ||
-      $("pre").filter((_, el) => {
-        const text = $(el).text();
-        return text.includes("#include") || text.includes("import") || text.includes("def ") || text.includes("int main");
-      }).first().text() || null;
+    const sourceCode = $("pre").filter((_, el) => {
+      const text = $(el).text();
+      return text.includes("#include") || text.includes("import") || text.includes("def ") || text.includes("int main") || text.includes("using namespace");
+    }).first().text() || null;
 
     return {
       csesSubmissionId: submissionId,
       problemId,
       verdict,
       timeMs,
-      memoryKb,
+      memoryKb: null,
       language,
       createdAt,
       sourceCode,

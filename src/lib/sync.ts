@@ -23,7 +23,8 @@ import {
 import {
   scrapeProblems as scrapeCsesProblems,
   scrapeSubmissionDetail,
-  scrapeUserSubmissionsForProblem,
+  scrapeSubmissionsForTask,
+  scrapeUserAllSubmissions,
   loginAs as csesLoginAs,
   resetSession as resetCsesSession,
 } from "@/lib/cses/scraper";
@@ -101,17 +102,16 @@ export async function syncCodeforces(
       const submissions = await fetchUserSubmissions(member.cf);
       const memberId = memberMap.get(member.cf.toLowerCase())!;
 
-      // Get existing submission IDs to do incremental sync
+      // Get ALL existing submission IDs (global, not per-member, since team submissions share IDs)
       const existingIds = new Set(
         (
           await prisma.cfSubmission.findMany({
-            where: { memberId },
+            where: { id: { in: submissions.map((s) => s.id) } },
             select: { id: true },
           })
         ).map((s) => s.id)
       );
 
-      // Filter to only new submissions
       const newSubmissions = submissions.filter((s) => !existingIds.has(s.id));
 
       if (newSubmissions.length === 0) {
@@ -398,25 +398,28 @@ export async function syncCses(
     });
 
     try {
-      // Get the user's attempted problems
-      const attemptedProblems = await scrapeUserSubmissionsForProblem(member.csesId, "");
+      const attemptedProblems = await scrapeUserAllSubmissions(member.csesId);
 
-      // For each attempted problem, get submissions
-      for (const probId of attemptedProblems) {
-        const submissionIds = await scrapeUserSubmissionsForProblem(member.csesId, probId);
+      onProgress?.({
+        platform: "cses",
+        status: "running",
+        message: `${member.name}: ${attemptedProblems.length} problemas intentados, scrapeando submissions...`,
+        current: i + 1,
+        total: members.length,
+      });
+
+      for (const { problemId: probId } of attemptedProblems) {
+        const submissionIds = await scrapeSubmissionsForTask(probId);
 
         for (const subId of submissionIds) {
-          // Check if we already have this submission
           const existing = await prisma.csesSubmission.findUnique({
             where: { csesSubmissionId: subId },
           });
           if (existing) continue;
 
-          // Scrape submission detail
           const detail = await scrapeSubmissionDetail(subId);
           if (!detail) continue;
 
-          // Find the problem in DB
           const dbProblem = await prisma.csesProblem.findUnique({
             where: { csesId: detail.problemId || probId },
           });
