@@ -14,7 +14,7 @@ export default function SettingsPage() {
     fetch("/api/sync").then((r) => r.json()).then((d) => {
       setLogs(d.logs || []);
       if (d.isRunning) setSyncing("running");
-    });
+    }).catch(() => {});
   };
 
   useEffect(() => { fetchLogs(); }, []);
@@ -28,14 +28,26 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platform }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setMessage(`❌ El servidor tardó demasiado (timeout). Usá sync individual o ejecutalo localmente.`);
+        return;
+      }
       if (res.ok) {
         setMessage(`✅ Sincronización completada: ${JSON.stringify(data.result)}`);
       } else {
         setMessage(`❌ Error: ${data.error}`);
       }
     } catch (e) {
-      setMessage(`❌ Error de red: ${e instanceof Error ? e.message : "Unknown"}`);
+      const msg = e instanceof Error ? e.message : "Unknown";
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+        setMessage(`❌ Timeout: el sync tardó demasiado. Probá sincronizar cada plataforma por separado.`);
+      } else {
+        setMessage(`❌ Error de red: ${msg}`);
+      }
     } finally {
       setSyncing(null);
       fetchLogs();
@@ -53,7 +65,7 @@ export default function SettingsPage() {
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>🔄 Sincronización</h2>
         <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 20 }}>
           La sincronización es <strong>incremental</strong>: solo descarga datos nuevos que no tengamos.
-          El código fuente se scrapea por separado (más lento).
+          En producción, usá los botones individuales para evitar timeouts. El sync completo puede tardar varios minutos.
         </p>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
@@ -113,8 +125,8 @@ export default function SettingsPage() {
         <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.8 }}>
           <p><strong>Codeforces metadata</strong> (rápido): Usa la API pública para traer contests, problemas y submissions. No necesita login.</p>
           <p><strong>Codeforces código</strong> (lento): Scrapea el código fuente del sitio. Necesita login (CF_USERNAME/CF_PASSWORD en .env). ~3 segundos por submission.</p>
-          <p><strong>CSES</strong> (lento): Scrapea todo del sitio. Necesita login (CSES_USERNAME/CSES_PASSWORD en .env). ~2 segundos por submission.</p>
-          <p style={{ marginTop: 12 }}>La sincronización es <strong>incremental</strong>: solo descarga lo que no tenemos. Si querés forzar una re-descarga completa, podés borrar la base de datos.</p>
+          <p><strong>CSES</strong> (lento): Scrapea todo del sitio. Necesita login por cada miembro. ~2 segundos por submission.</p>
+          <p style={{ marginTop: 12 }}>La sincronización es <strong>incremental</strong>: solo descarga lo que no tenemos. El cron diario sincroniza Codeforces metadata automáticamente.</p>
         </div>
       </div>
     </>

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { syncAll, syncCodeforces, syncCodeforcesSourceCode, syncCses } from "@/lib/sync";
 import prisma from "@/lib/db";
 
-// Track if a sync is currently running
+export const maxDuration = 300;
+
 let syncRunning = false;
 
 export async function POST(request: Request) {
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const platform = body.platform || "all"; // "all", "codeforces", "codeforces-code", "cses"
+  const platform = body.platform || "all";
 
   syncRunning = true;
 
@@ -49,14 +50,21 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  // Return recent sync logs
-  const logs = await prisma.syncLog.findMany({
-    orderBy: { startedAt: "desc" },
-    take: 20,
-  });
+  try {
+    const logs = await prisma.syncLog.findMany({
+      orderBy: { startedAt: "desc" },
+      take: 20,
+    });
 
-  return NextResponse.json({
-    isRunning: syncRunning,
-    logs,
-  });
+    return NextResponse.json({
+      isRunning: syncRunning,
+      logs,
+    });
+  } catch (error) {
+    return NextResponse.json({
+      isRunning: false,
+      logs: [],
+      error: error instanceof Error ? error.message : "Failed to fetch logs",
+    });
+  }
 }
