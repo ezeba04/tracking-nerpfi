@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
 export async function GET() {
-  // Dashboard stats
+  try {
   const [
     totalMembers,
     totalCfContests,
@@ -23,7 +23,6 @@ export async function GET() {
     prisma.syncLog.findMany({ orderBy: { startedAt: "desc" }, take: 5 }),
   ]);
 
-  // Recent activity (last 20 CF submissions)
   const recentCfSubmissions = await prisma.cfSubmission.findMany({
     orderBy: { createdAt: "desc" },
     take: 20,
@@ -34,7 +33,6 @@ export async function GET() {
     },
   });
 
-  // Per-member stats
   const members = await prisma.teamMember.findMany({
     include: {
       _count: {
@@ -91,4 +89,9 @@ export async function GET() {
     recentActivity: recentCfSubmissions,
     recentSyncLogs,
   });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    const errName = error instanceof Error ? error.constructor.name : "Unknown";
+    return NextResponse.json({ error: message, type: errName }, { status: 500 });
+  }
 }
