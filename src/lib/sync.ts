@@ -130,16 +130,17 @@ export async function syncCodeforces(
         if (!sub.contestId) continue;
 
         const contest = contestMap.get(sub.contestId);
-        if (!contest || !contest.startTimeSeconds) continue;
+        if (!contest) continue;
 
-        // Upsert contest
+        const startTime = contest.startTimeSeconds || 0;
+
         await prisma.cfContest.upsert({
           where: { id: contest.id },
           update: {},
           create: {
             id: contest.id,
             name: contest.name,
-            startTime: contest.startTimeSeconds,
+            startTime,
             durationSeconds: contest.durationSeconds,
             type: contest.type,
             phase: contest.phase,

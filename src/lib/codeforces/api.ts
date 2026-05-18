@@ -124,16 +124,20 @@ export async function fetchContestSubmissions(
 }
 
 /**
- * Get full list of contests from Codeforces
+ * Get full list of contests from Codeforces (regular + gym)
  */
 export async function fetchContestList(): Promise<CfApiContest[]> {
-  const response = await rateLimitedFetch(`${CF_API_BASE}/contest.list`);
-  const data: CfApiResponse<CfApiContest[]> = await response.json();
+  const [regularRes, gymRes] = await Promise.all([
+    rateLimitedFetch(`${CF_API_BASE}/contest.list`),
+    rateLimitedFetch(`${CF_API_BASE}/contest.list?gym=true`),
+  ]);
+  const regular: CfApiResponse<CfApiContest[]> = await regularRes.json();
+  const gym: CfApiResponse<CfApiContest[]> = await gymRes.json();
 
-  if (data.status !== "OK") {
-    throw new Error(`CF API error: ${data.comment || "Unknown error"}`);
-  }
-  return data.result;
+  const results: CfApiContest[] = [];
+  if (regular.status === "OK") results.push(...regular.result);
+  if (gym.status === "OK") results.push(...gym.result);
+  return results;
 }
 
 /**
