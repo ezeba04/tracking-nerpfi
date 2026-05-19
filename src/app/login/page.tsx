@@ -1,12 +1,10 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,8 +18,7 @@ export default function LoginPage() {
     });
 
     if (res.ok) {
-      router.push("/");
-      router.refresh();
+      window.location.href = "/";
     } else {
       setError("Contraseña incorrecta");
       setLoading(false);
