@@ -3,7 +3,6 @@ import prisma from "@/lib/db";
 
 export async function GET() {
   const contests = await prisma.cfContest.findMany({
-    orderBy: { startTime: "desc" },
     include: {
       problems: {
         orderBy: { problemIndex: "asc" },
@@ -14,10 +13,8 @@ export async function GET() {
     },
   });
 
-  // For each contest, compute summary stats
   const contestsWithStats = await Promise.all(
     contests.map(async (contest) => {
-      // Get unique problems solved (with AC verdict) during contest and upsolving
       const solvedDuringContest = await prisma.cfSubmission.findMany({
         where: {
           contestId: contest.id,
@@ -38,7 +35,6 @@ export async function GET() {
         distinct: ["problemId"],
       });
 
-      // Get participating members
       const participants = await prisma.cfSubmission.findMany({
         where: { contestId: contest.id },
         select: {
@@ -47,15 +43,24 @@ export async function GET() {
         distinct: ["memberId"],
       });
 
+      const lastSubmission = await prisma.cfSubmission.findFirst({
+        where: { contestId: contest.id },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      });
+
       return {
         ...contest,
         solvedInContest: solvedDuringContest.length,
         solvedUpsolving: solvedUpsolving.length,
         totalSubmissions: contest._count.submissions,
         participants: participants.map((p) => p.member),
+        lastActivity: lastSubmission?.createdAt ?? contest.startTime,
       };
     })
   );
+
+  contestsWithStats.sort((a, b) => b.lastActivity - a.lastActivity);
 
   return NextResponse.json(contestsWithStats);
 }

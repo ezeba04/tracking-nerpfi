@@ -293,10 +293,16 @@ export async function scrapeSubmissionDetail(
     const $ = cheerio.load(html);
 
     let problemId = "";
-    $("a").each((_, el) => {
-      const href = $(el).attr("href") || "";
-      const match = href.match(/\/problemset\/task\/(\d+)/);
-      if (match) problemId = match[1];
+    $("table tr").each((_, row) => {
+      const cells = $(row).find("td");
+      if (cells.length < 2) return;
+      const label = $(cells[0]).text().trim().toLowerCase();
+      if (label.startsWith("task")) {
+        const link = $(cells[1]).find("a");
+        const href = link.attr("href") || "";
+        const m = href.match(/\/problemset\/task\/(\d+)/);
+        if (m) problemId = m[1];
+      }
     });
 
     let verdict = "Unknown";
