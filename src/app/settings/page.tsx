@@ -75,9 +75,6 @@ export default function SettingsPage() {
           <button className="btn btn-secondary" disabled={!!syncing} onClick={() => triggerSync("codeforces")}>
             {syncing === "codeforces" ? "⏳..." : "🏆 Solo Codeforces (metadata)"}
           </button>
-          <button className="btn btn-secondary" disabled={!!syncing} onClick={() => triggerSync("codeforces-code")}>
-            {syncing === "codeforces-code" ? "⏳..." : "📝 Solo código CF"}
-          </button>
           <button className="btn btn-secondary" disabled={!!syncing} onClick={() => triggerSync("cses")}>
             {syncing === "cses" ? "⏳..." : "📘 Solo CSES"}
           </button>
@@ -123,10 +120,9 @@ export default function SettingsPage() {
       <div className="card">
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>ℹ️ Cómo funciona</h2>
         <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.8 }}>
-          <p><strong>Codeforces metadata</strong> (rápido): Usa la API pública para traer contests, problemas y submissions. No necesita login.</p>
-          <p><strong>Codeforces código</strong> (lento): Scrapea el código fuente del sitio. Necesita login (CF_USERNAME/CF_PASSWORD en .env). ~3 segundos por submission.</p>
-          <p><strong>CSES</strong> (lento): Scrapea todo del sitio. Necesita login por cada miembro. ~2 segundos por submission.</p>
-          <p style={{ marginTop: 12 }}>La sincronización es <strong>incremental</strong>: solo descarga lo que no tenemos. El cron diario sincroniza Codeforces metadata automáticamente.</p>
+          <p><strong>Codeforces</strong> (rápido): Usa la API pública para traer contests, problemas y submissions. Cada submission tiene link directo a CF para ver el código.</p>
+          <p><strong>CSES</strong> (lento): Scrapea todo del sitio incluyendo código fuente. Necesita login por cada miembro. ~2 segundos por submission.</p>
+          <p style={{ marginTop: 12 }}>La sincronización es <strong>incremental</strong>: solo descarga lo que no tenemos. El cron diario sincroniza Codeforces automáticamente.</p>
         </div>
       </div>
     </>

@@ -230,7 +230,6 @@ export async function syncCodeforces(
 export async function syncCodeforcesSourceCode(
   onProgress?: ProgressCallback
 ): Promise<number> {
-  // Find submissions without source code
   const submissionsWithoutCode = await prisma.cfSubmission.findMany({
     where: { sourceCode: null },
     select: { id: true, contestId: true },
@@ -248,47 +247,18 @@ export async function syncCodeforcesSourceCode(
     return 0;
   }
 
-  resetCfSession();
-  let scraped = 0;
-
+  // Codeforces uses Cloudflare protection which blocks server-side fetch().
+  // Source code must be scraped locally with a real browser (Puppeteer).
+  // Run: npx tsx scrape-cf-code.ts
   onProgress?.({
     platform: "codeforces",
-    status: "running",
-    message: `Scraping source code for ${submissionsWithoutCode.length} submissions...`,
+    status: "completed",
+    message: `${submissionsWithoutCode.length} submissions sin código. CF usa Cloudflare — ejecutá 'npx tsx scrape-cf-code.ts' localmente.`,
     current: 0,
     total: submissionsWithoutCode.length,
   });
 
-  for (let i = 0; i < submissionsWithoutCode.length; i++) {
-    const sub = submissionsWithoutCode[i];
-
-    onProgress?.({
-      platform: "codeforces",
-      status: "running",
-      message: `Scraping submission ${sub.id}...`,
-      current: i + 1,
-      total: submissionsWithoutCode.length,
-    });
-
-    const code = await scrapeSubmissionCode(sub.contestId, sub.id);
-    if (code) {
-      await prisma.cfSubmission.update({
-        where: { id: sub.id },
-        data: { sourceCode: code },
-      });
-      scraped++;
-    }
-  }
-
-  onProgress?.({
-    platform: "codeforces",
-    status: "completed",
-    message: `Scraped source code for ${scraped}/${submissionsWithoutCode.length} submissions`,
-    current: submissionsWithoutCode.length,
-    total: submissionsWithoutCode.length,
-  });
-
-  return scraped;
+  return 0;
 }
 
 // ─── CSES Sync ──────────────────────────────────────────

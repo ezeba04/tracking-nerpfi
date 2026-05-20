@@ -119,8 +119,15 @@ export default function ProblemDetailPage() {
                   <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
                     {sub.timeMs != null && <span>{sub.timeMs} ms · </span>}
                     {sub.memoryBytes != null && <span>{formatBytes(sub.memoryBytes)} · </span>}
-                    {sub.language && <span>{sub.language}</span>}
-                    {sub.passedTests != null && sub.verdict !== "OK" && <span> · Test #{sub.passedTests + 1}</span>}
+                    {sub.language && <span>{sub.language} · </span>}
+                    {sub.passedTests != null && sub.verdict !== "OK" && <span>Test #{sub.passedTests + 1} · </span>}
+                    <a
+                      href={`https://codeforces.com/${data.contest.id >= 100000 ? "gym" : "contest"}/${data.contest.id}/submission/${sub.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ color: "var(--accent-blue)" }}
+                    >CF ↗</a>
                   </div>
                 </div>
               </div>
@@ -156,7 +163,15 @@ export default function ProblemDetailPage() {
             )
           ) : selected ? (
             <div className="empty-state" style={{ padding: 32 }}>
-              <p>Código no disponible. Sincronizá el código fuente desde Configuración.</p>
+              <a
+                href={`https://codeforces.com/${data.contest.id >= 100000 ? "gym" : "contest"}/${data.contest.id}/submission/${selected.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="link-external"
+                style={{ fontSize: 15 }}
+              >
+                Ver código en Codeforces ↗
+              </a>
             </div>
           ) : (
             <div className="empty-state" style={{ padding: 32 }}>
